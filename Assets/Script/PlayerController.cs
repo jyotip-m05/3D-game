@@ -1,22 +1,45 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerControlller : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [SerializeField] private InputActionAsset inputActions;
+    [SerializeField] private float speed = 5f;
+    [SerializeField] private float jumpForce = 5f;
+
+    private InputAction moveAction;
+    private InputAction jumpAction;
+    private Rigidbody rb;
+
+    void Awake()
     {
-        
+        rb = GetComponent<Rigidbody>();
+        var playerMap = inputActions.FindActionMap("Player");
+        moveAction = playerMap.FindAction("Move");
+        jumpAction = playerMap.FindAction("Jump");
     }
 
-    // Update is called once per frame
+    void OnEnable()
+    {
+        moveAction?.Enable();
+        jumpAction?.Enable();
+    }
+
+    void OnDisable()
+    {
+        moveAction?.Disable();
+        jumpAction?.Disable();
+    }
+
     void Update()
     {
-        var position = transform.position;
-        var rotation = transform.rotation;
-        rotation.x = rotation.x + Input.GetAxis("Mouse X");
-        rotation.z = rotation.z - Input.GetAxis("Mouse Y");
-        transform.rotation = rotation;
-        position = transform.position + new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
+        Vector2 moveInput = moveAction.ReadValue<Vector2>();
+        Vector3 move = new Vector3(moveInput.x, 0, moveInput.y) * (speed * Time.deltaTime);
+        transform.Translate(move, Space.World);
+
+        if (jumpAction.triggered && Mathf.Abs(rb.linearVelocity.y) < 0.01f)
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        }
     }
 }
