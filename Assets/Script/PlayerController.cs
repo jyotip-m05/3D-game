@@ -14,8 +14,9 @@ public class PlayerControlller : MonoBehaviour
     {
         var position = transform.position;
         var rotation = transform.rotation;
-        rotation.y = rotation.y + Input.GetAxis("Mouse X");
+        rotation.x = rotation.x + Input.GetAxis("Mouse X");
+        rotation.z = rotation.z - Input.GetAxis("Mouse Y");
         transform.rotation = rotation;
-        position = transform.position + new Vector3(, , 0);
+        position = transform.position + new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
     }
 }
