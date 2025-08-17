@@ -1,10 +1,13 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")] [SerializeField] private InputActionAsset inputActions;
-    [SerializeField] private float speed = 5f;
+    private float speed;
+    [SerializeField] private float hspeed = 7f;
+    [SerializeField] private float sspeed = 5f;
     [SerializeField] private float jumpForce = 5f;
 
     [Header("Look Settings")] [SerializeField]
@@ -16,6 +19,7 @@ public class PlayerController : MonoBehaviour
     [Header("Input Actions")] InputAction _moveAction;
     InputAction _jumpAction;
     InputAction _lookAction;
+    InputAction _sprintAction;
 
     [Header("References")] private Rigidbody rb;
 
@@ -24,13 +28,17 @@ public class PlayerController : MonoBehaviour
 
     [SerializeField] private LayerMask groundMask;
     private bool isGrounded = true;
+    
+    bool sprinting = false;
 
     private void Awake()
     {
         // Find the references to the "Move" and "Jump" actions from the asset
+        speed = sspeed;
         _moveAction = inputActions.FindActionMap("Player").FindAction("Move");
         _jumpAction = inputActions.FindActionMap("Player").FindAction("Jump");
         _lookAction = inputActions.FindActionMap("Player").FindAction("Look");
+        _sprintAction = inputActions.FindActionMap("Player").FindAction("Sprint");
         rb = GetComponent<Rigidbody>();
     }
 
@@ -39,6 +47,7 @@ public class PlayerController : MonoBehaviour
         _moveAction.Enable();
         _jumpAction.Enable();
         _lookAction.Enable();
+        _sprintAction.Enable();
     }
 
     private void OnDisable()
@@ -46,13 +55,15 @@ public class PlayerController : MonoBehaviour
         _moveAction.Disable();
         _jumpAction.Disable();
         _lookAction.Disable();
+        _sprintAction.Disable();
     }
 
     void Update()
     {
         // Ground check
         // isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance + 0.1f, groundMask);
-
+        // Sprint
+        CheckSprint();
         // Read the "Move" action value, which is a 2D vector
         Vector2 moveValue = _moveAction.ReadValue<Vector2>();
         // Move relative to player orientation
@@ -67,6 +78,26 @@ public class PlayerController : MonoBehaviour
             Jump();
         }
         HandleLook();
+    }
+    
+    private IEnumerator Sprint()
+    {
+        if (!sprinting)
+        {
+            sprinting = true;
+            speed = hspeed;
+            yield return new WaitForSeconds(1f);
+            speed = sspeed;
+            sprinting = false;
+        }
+    }
+
+    private void CheckSprint()
+    {
+        if (_sprintAction.triggered)
+        {
+            StartCoroutine(Sprint());
+        }
     }
 
     private void Jump()

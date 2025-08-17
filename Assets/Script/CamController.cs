@@ -31,7 +31,7 @@ namespace Script
         // Update is called once per frame
         void Update()
         {
-            float upDown = look.ReadValue<Vector2>().y * lookSensitivity * Time.deltaTime;
+            float upDown = look.ReadValue<Vector2>().x * lookSensitivity * Time.deltaTime;
             transform.Rotate(0f,0f, upDown);
         }
     }
