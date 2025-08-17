@@ -28,7 +28,7 @@ namespace Script
         [SerializeField] private float attackRange = 3f;
 
         [Header("Suspicion")] 
-        [SerializeField] private float suspicionTime = 1.5f;
+        [SerializeField] private float suspicionTime = 0.5f;
         private float timeSinceLastSuspicion;
         [Header("Player")]
         [SerializeField] private GameObject player;
