@@ -32,7 +32,7 @@ namespace Script
         void Update()
         {
             float upDown = look.ReadValue<Vector2>().x * lookSensitivity * Time.deltaTime;
-            transform.Rotate(upDown,0f, 0f);
+            transform.Rotate(0f,0f, upDown);
         }
     }
 }
