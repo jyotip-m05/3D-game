@@ -1,14 +1,19 @@
+using System;
 using System.Collections;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Stats")] [SerializeField] private float range = 500f;
+    [SerializeField] private LayerMask layerMask;
+
     [Header("Movement")] [SerializeField] private InputActionAsset inputActions;
     private float speed;
     [SerializeField] private float hspeed = 7f;
     [SerializeField] private float sspeed = 5f;
-    [SerializeField] private float jumpForce = 5f;
+    [SerializeField] private float jumpForce = 10f;
 
     [Header("Look Settings")] [SerializeField]
     private float lookSensitivity = 2f;
@@ -20,16 +25,35 @@ public class PlayerController : MonoBehaviour
     InputAction _jumpAction;
     InputAction _lookAction;
     InputAction _sprintAction;
+    InputAction _attackAction;
 
     [Header("References")] private Rigidbody rb;
+    public int coinsCollected { get; private set; } = 0;
+    public int killCount { get; private set; } = 0;
+    public float health { get; private set; } = 100f;
 
     [Header("Ground Check")] [SerializeField]
     private float groundCheckDistance = 0.1f;
 
     [SerializeField] private LayerMask groundMask;
     private bool isGrounded = true;
-    
+
+    [Header("Display")] [SerializeField] private TMPro.TextMeshProUGUI coinsText;
+    [SerializeField] private TMPro.TextMeshProUGUI killCountText;
+    [SerializeField] private TMPro.TextMeshProUGUI healthText;
+
     bool sprinting = false;
+
+    private float lastHitTime;
+
+    [SerializeField] private float hitCooldown = 0.5f;
+
+    [SerializeField] private float lastRecTime = 0.5f;
+
+    private bool canShoot = true;
+
+    [SerializeField] private float fireRate = 0.07f;
+    // private LayerMask enemyMask;
 
     private void Awake()
     {
@@ -39,7 +63,38 @@ public class PlayerController : MonoBehaviour
         _jumpAction = inputActions.FindActionMap("Player").FindAction("Jump");
         _lookAction = inputActions.FindActionMap("Player").FindAction("Look");
         _sprintAction = inputActions.FindActionMap("Player").FindAction("Sprint");
+        _attackAction = inputActions.FindActionMap("Player").FindAction("Attack");
         rb = GetComponent<Rigidbody>();
+        coinsText.text = "Coins: " + coinsCollected;
+        killCountText.text = "Kills: " + killCount;
+        healthText.text = "Health: " + health;
+        lastHitTime = Time.time;
+        layerMask = LayerMask.GetMask("Enemy");
+        // enemyMask = LayerMask.GetMask("Enemy");
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // Debug.Log(other.gameObject.name);
+        // Debug.Log(enemyMask);
+        // Debug.Log(other.transform.parent.name);
+        if (other.transform.parent.name == "Coins")
+        {
+            coinsCollected++;
+            Destroy(other.transform.gameObject);
+            coinsText.text = "Coins: " + coinsCollected;
+        }
+        // other.transform.parent.name, "^Enemy \\(\\d+\\)$")
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (other.CompareTag("Enemy") && Time.time > lastHitTime + hitCooldown)
+        {
+            health -= 1f;
+            lastHitTime = Time.time;
+            healthText.text = "Health: " + (Mathf.RoundToInt(health * 10)) / 10f;
+        }
     }
 
     private void OnEnable()
@@ -48,6 +103,7 @@ public class PlayerController : MonoBehaviour
         _jumpAction.Enable();
         _lookAction.Enable();
         _sprintAction.Enable();
+        _attackAction.Enable();
     }
 
     private void OnDisable()
@@ -56,13 +112,18 @@ public class PlayerController : MonoBehaviour
         _jumpAction.Disable();
         _lookAction.Disable();
         _sprintAction.Disable();
+        _attackAction.Disable();
     }
 
     void Update()
     {
         // Ground check
-        // isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance + 0.1f, groundMask);
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance + 2f, groundMask);
+        // Debug ray for ground check
+        Debug.DrawRay(transform.position, Vector3.down * (groundCheckDistance + 2f),
+            isGrounded ? Color.green : Color.red);
         // Sprint
+        CollectCoins();
         CheckSprint();
         // Read the "Move" action value, which is a 2D vector
         Vector2 moveValue = _moveAction.ReadValue<Vector2>();
@@ -77,19 +138,31 @@ public class PlayerController : MonoBehaviour
         {
             Jump();
         }
+
         HandleLook();
+        Recovery();
+        if (_attackAction.triggered)
+        {
+            Shoot();
+        }
     }
-    
+
     private IEnumerator Sprint()
     {
         if (!sprinting)
         {
             sprinting = true;
             speed = hspeed;
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(5f); //sprint duration
             speed = sspeed;
+            yield return new WaitForSeconds(1f); // sprint cooldown
             sprinting = false;
         }
+    }
+
+    private void CollectCoins()
+    {
+        //
     }
 
     private void CheckSprint()
@@ -106,6 +179,16 @@ public class PlayerController : MonoBehaviour
         rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 
+    private void Recovery()
+    {
+        if (health < 100f && lastHitTime + hitCooldown < Time.time && lastRecTime + hitCooldown < Time.time)
+        {
+            health += 0.5f;
+            healthText.text = "Health: " + (Mathf.RoundToInt(health * 10)) / 10f;
+            lastRecTime = Time.time;
+        }
+    }
+
     private void HandleLook()
     {
         Vector2 lookValue = _lookAction.ReadValue<Vector2>() * lookSensitivity;
@@ -115,10 +198,30 @@ public class PlayerController : MonoBehaviour
 
         // Camera up/down (pitch)
         cameraPitch -= lookValue.y;
-        // cameraPitch = Mathf.Clamp(cameraPitch, -80f, 80f);
-        // if (cameraTransform is not null)
-        // {
-        //     cameraTransform.localEulerAngles = new Vector3(cameraPitch, 0f, 0f);
-        // }
+        cameraPitch = Mathf.Clamp(cameraPitch, -45f, 45f);
+        cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+    }
+
+    private void Shoot()
+    {
+        if (!canShoot) return;
+        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out RaycastHit hit, range, layerMask))
+        {
+            if (hit.transform.CompareTag("Enemy"))
+            {
+                // Debug.Log("Hit: " + hit.transform.name);
+                Destroy(hit.transform.gameObject);
+                killCount++;
+                killCountText.text = "Kills: " + killCount;
+                StartCoroutine(wait());
+            }
+
+            IEnumerator wait()
+            {
+                canShoot = false;
+                yield return new WaitForSeconds(fireRate);
+                canShoot = true;
+            }
+        }
     }
 }

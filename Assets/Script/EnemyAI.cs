@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 
 namespace Script
 {
@@ -12,8 +13,9 @@ namespace Script
             Chase,
         }
 
+        [FormerlySerializedAs("patrolPoints")]
         [Header("Patrol")] 
-        [SerializeField] private Transform[] patrolPoints;
+        [SerializeField] private Transform patrolArea;
         [SerializeField] private float waitAtPoint = 1f;
         private int currentWaypoint;
         private float waitCounter;
@@ -57,19 +59,20 @@ namespace Script
                     else
                     {
                         currentState = AIState.Patrol;
-                        agent.SetDestination(patrolPoints[currentWaypoint].position);
+                        agent.SetDestination(patrolArea.GetChild(currentWaypoint).position);
                     }
                 
                     if(distToPlayer <= chaseRange)
                     {
                         currentState = AIState.Chase;
+                        
                     }
                     break;
                 case AIState.Patrol:
-                    if (agent.remainingDistance <= 0.2f)
+                    if (agent.remainingDistance <= 0.4f)
                     {
                         currentWaypoint++;
-                        if (currentWaypoint >= patrolPoints.Length)
+                        if (currentWaypoint >= patrolArea.childCount)
                         {
                             currentWaypoint = 0;
                         }
@@ -95,7 +98,13 @@ namespace Script
                             currentState = AIState.Idle;
                             waitCounter = waitAtPoint;
                             timeSinceLastSuspicion = suspicionTime;
+                            agent.isStopped = false;
                         }
+                    }
+                    else
+                    {
+                        // if enemy is close enough to attack
+                        // attacks the player
                     }
                     break;
             }
