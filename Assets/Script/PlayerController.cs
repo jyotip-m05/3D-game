@@ -1,12 +1,14 @@
 using System;
 using System.Collections;
 using System.Text.RegularExpressions;
+using Script;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    [Header("Stats")] [SerializeField] private float range = 500f;
+    private static readonly int IsAttacking = Animator.StringToHash("isAttacking");
+    [Header("Stats")] [SerializeField] private float range = 20f;
     [SerializeField] private LayerMask layerMask;
 
     [Header("Movement")] [SerializeField] private InputActionAsset inputActions;
@@ -17,6 +19,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Look Settings")] [SerializeField]
     private float lookSensitivity = 2f;
+    [SerializeField] private ParticleSystem muzzleFlash;
 
     [SerializeField] private Transform cameraTransform;
     private float cameraPitch = 0f;
@@ -31,6 +34,7 @@ public class PlayerController : MonoBehaviour
     public int coinsCollected { get; private set; } = 0;
     public int killCount { get; private set; } = 0;
     public float health { get; private set; } = 100f;
+    private Coroutine waitCoroutine = null;
 
     [Header("Ground Check")] [SerializeField]
     private float groundCheckDistance = 0.1f;
@@ -43,6 +47,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private TMPro.TextMeshProUGUI healthText;
 
     bool sprinting = false;
+    bool attacking = false;
 
     private float lastHitTime;
 
@@ -52,7 +57,9 @@ public class PlayerController : MonoBehaviour
 
     private bool canShoot = true;
 
-    [SerializeField] private float fireRate = 0.07f;
+    [SerializeField] private float fireRate = 0.01f;
+
+    private Animator animator;
     // private LayerMask enemyMask;
 
     private void Awake()
@@ -71,6 +78,7 @@ public class PlayerController : MonoBehaviour
         lastHitTime = Time.time;
         layerMask = LayerMask.GetMask("Enemy");
         // enemyMask = LayerMask.GetMask("Enemy");
+        muzzleFlash.Stop();
     }
 
     private void OnTriggerEnter(Collider other)
@@ -92,8 +100,22 @@ public class PlayerController : MonoBehaviour
         if (other.CompareTag("Enemy") && Time.time > lastHitTime + hitCooldown)
         {
             health -= 1f;
+            if (animator = other.GetComponent<Animator>())
+            {
+                animator.SetBool(IsAttacking, true);
+            }
+
             lastHitTime = Time.time;
             healthText.text = "Health: " + (Mathf.RoundToInt(health * 10)) / 10f;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        animator = other.GetComponent<Animator>();
+        if (animator)
+        {
+            animator.SetBool(IsAttacking, false);
         }
     }
 
@@ -125,7 +147,6 @@ public class PlayerController : MonoBehaviour
         // Sprint
         CollectCoins();
         CheckSprint();
-        // Read the "Move" action value, which is a 2D vector
         Vector2 moveValue = _moveAction.ReadValue<Vector2>();
         // Move relative to player orientation
         Vector3 moveDirection = transform.right * moveValue.x + transform.forward * moveValue.y;
@@ -204,24 +225,44 @@ public class PlayerController : MonoBehaviour
 
     private void Shoot()
     {
-        if (!canShoot) return;
+        // if (!canShoot)
+        // {
+        //     return;
+        // }
+        // Debug.DrawRay(cameraTransform.position, cameraTransform.forward, Color.cyan, 2f, true);
+        StartCoroutine(Muzzle());
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out RaycastHit hit, range, layerMask))
         {
+            Debug.Log($"Raycast hit: {hit.transform.name}, Tag: {hit.transform.tag}, Layer: {LayerMask.LayerToName(hit.transform.gameObject.layer)}");
             if (hit.transform.CompareTag("Enemy"))
             {
-                // Debug.Log("Hit: " + hit.transform.name);
-                Destroy(hit.transform.gameObject);
-                killCount++;
-                killCountText.text = "Kills: " + killCount;
-                StartCoroutine(wait());
-            }
-
-            IEnumerator wait()
-            {
-                canShoot = false;
-                yield return new WaitForSeconds(fireRate);
-                canShoot = true;
+                EnemyAI enemyAI = hit.transform.GetComponentInParent<EnemyAI>();
+                if (enemyAI)
+                {
+                    Debug.Log($"Starting Death coroutine for {hit.transform.name}, Enemy State: {enemyAI?.currentState}");
+                    StartCoroutine(enemyAI.Death());
+                    killCount++;
+                    killCountText.text = "Kills: " + killCount;
+                }
             }
         }
+    }
+
+    IEnumerator Muzzle()
+    {
+        attacking = true;
+        muzzleFlash.Play();
+        yield return new WaitForSeconds(0.1f);
+        muzzleFlash.Stop();
+        yield return new WaitForSeconds(0.1f);
+        attacking = false;
+    }
+
+    IEnumerator Wait()
+    {
+        canShoot = false;
+        yield return new WaitForSeconds(fireRate);
+        canShoot = true;
+        waitCoroutine = null;
     }
 }
